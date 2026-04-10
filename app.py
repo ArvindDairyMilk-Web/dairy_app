@@ -3,17 +3,30 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# ===== SEO SETTINGS =====
-st.set_page_config(
-    page_title="Dairy Milk Manager - Online Milk हिसाब",
-    page_icon="🐄",
-    layout="wide"
-)
+# ===== LOGIN SYSTEM =====
+USERNAME = "admin"
+PASSWORD = "1234"
 
-st.markdown("""
-    <meta name="description" content="Dairy Milk Manager - दूध का हिसाब रखने का आसान तरीका. Daily milk entry, fat calculation, payment tracking.">
-    <meta name="keywords" content="dairy milk manager, milk record, fat calculator, dairy software, milk हिसाब">
-""", unsafe_allow_html=True)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.title("🔐 Login - Dairy Manager")
+
+    user = st.text_input("Username")
+    pwd = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if user == USERNAME and pwd == PASSWORD:
+            st.session_state.logged_in = True
+            st.success("Login Successful")
+        else:
+            st.error("Wrong Username or Password")
+
+    st.stop()
+
+# ===== PAGE SETTINGS =====
+st.set_page_config(page_title="Dairy Manager", layout="wide")
 
 # ===== FILE =====
 file = "data.csv"
@@ -24,9 +37,9 @@ else:
     df = pd.DataFrame(columns=["Date","Shift","Quantity","Fat","Rate","Amount"])
     df.to_csv(file, index=False)
 
-# ===== TITLE =====
+# ===== HEADER =====
 st.title("🐄 Dairy Milk Manager")
-st.markdown("### 📥 Daily Milk Entry System")
+st.markdown("### 📥 Daily Entry System")
 
 # ===== INPUT =====
 col1, col2, col3 = st.columns(3)
@@ -62,45 +75,10 @@ if st.button("✅ Save Entry"):
     df.to_csv(file, index=False)
     st.success("Saved Successfully!")
 
-# ===== DOWNLOAD =====
-st.download_button(
-    label="📥 Download Data (Excel)",
-    data=df.to_csv(index=False),
-    file_name="dairy_data.csv",
-    mime="text/csv"
-)
-
 # ===== RECORDS =====
 st.markdown("---")
 st.markdown("## 📊 Records")
-
-if not df.empty:
-    df["Date"] = pd.to_datetime(df["Date"])
-
-colf1, colf2 = st.columns(2)
-
-with colf1:
-    filter_shift = st.selectbox("Filter by Shift", ["All", "Morning", "Evening"])
-
-with colf2:
-    if not df.empty:
-        start_date = st.date_input("From Date", df["Date"].min())
-        end_date = st.date_input("To Date", df["Date"].max())
-    else:
-        start_date = end_date = datetime.today()
-
-filtered_df = df.copy()
-
-if filter_shift != "All":
-    filtered_df = filtered_df[filtered_df["Shift"] == filter_shift]
-
-if not filtered_df.empty:
-    filtered_df = filtered_df[
-        (filtered_df["Date"] >= pd.to_datetime(start_date)) &
-        (filtered_df["Date"] <= pd.to_datetime(end_date))
-    ]
-
-st.dataframe(filtered_df, use_container_width=True)
+st.dataframe(df, use_container_width=True)
 
 # ===== SUMMARY =====
 st.markdown("---")
@@ -108,10 +86,11 @@ st.markdown("## 💵 Summary")
 
 colt1, colt2 = st.columns(2)
 
-total_amount = filtered_df["Amount"].sum() if not filtered_df.empty else 0
+total_amount = df["Amount"].sum() if not df.empty else 0
 colt1.metric("Total Amount", f"₹ {total_amount:.2f}")
 
 if not df.empty:
+    df["Date"] = pd.to_datetime(df["Date"])
     last_10 = df[df["Date"] >= (pd.Timestamp.today() - pd.Timedelta(days=10))]
     last_10_total = last_10["Amount"].sum()
 else:
@@ -119,6 +98,18 @@ else:
 
 colt2.metric("Last 10 Days", f"₹ {last_10_total:.2f}")
 
-# ===== FOOTER =====
+# ===== SLIP PREVIEW =====
 st.markdown("---")
-st.markdown("Made with ❤️ for Dairy Management")
+st.markdown("## 🧾 Slip Preview")
+
+st.write(f"Date: {date}")
+st.write(f"Shift: {shift}")
+st.write(f"Milk: {qty} Ltr")
+st.write(f"Fat: {fat}")
+st.write(f"Rate: ₹ {rate:.2f}")
+st.write(f"Amount: ₹ {amount:.2f}")
+
+# ===== LOGOUT =====
+if st.button("🚪 Logout"):
+    st.session_state.logged_in = False
+    st.experimental_rerun()
