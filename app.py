@@ -3,162 +3,198 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# ===== PAGE =====
-st.set_page_config(page_title="Arvind Dairy", layout="wide")
+st.set_page_config(page_title="Arvind Dairy Super App", layout="wide")
+
+# ===== CSS (GLASS UI) =====
+st.markdown("""
+<style>
+
+body {
+    background: linear-gradient(to right, #e0ecff, #ffffff);
+}
+
+.card {
+    padding: 15px;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(10px);
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 15px;
+}
+
+.big {
+    font-size: 22px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ===== FILE =====
-file = "data.csv"
+DATA_FILE = "data.csv"
+EXP_FILE = "expense.csv"
 
-def load_data():
+def load(file, cols):
     if os.path.exists(file):
-        df = pd.read_csv(file)
+        try:
+            df = pd.read_csv(file)
+        except:
+            df = pd.DataFrame(columns=cols)
     else:
-        df = pd.DataFrame(columns=["Date","Shift","Quantity","Fat","Rate","Amount"])
+        df = pd.DataFrame(columns=cols)
         df.to_csv(file, index=False)
     return df
 
-def save_data(df):
-    df.to_csv(file, index=False)
+df = load(DATA_FILE, ["Date","Customer","Shift","Qty","Fat","Rate","Amount"])
+exp = load(EXP_FILE, ["Date","Amount","Note"])
 
-df = load_data()
-
-# ===== DATE FIX =====
 if not df.empty:
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 
-# ===== LOGIN =====
-USERNAME = "admin"
-PASSWORD = "1234"
+def save():
+    df.to_csv(DATA_FILE, index=False)
+    exp.to_csv(EXP_FILE, index=False)
 
+# ===== LOGIN =====
 if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
-    st.title("🔐 Arvind Dairy Login")
+    st.title("🔐 Login - Arvind Dairy")
 
-    user = st.text_input("Username")
-    pwd = st.text_input("Password", type="password")
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if user == USERNAME and pwd == PASSWORD:
+        if u == "admin" and p == "1234":
             st.session_state.login = True
             st.rerun()
         else:
-            st.error("Wrong Username")
+            st.error("Wrong login")
 
     st.stop()
 
-# ===== HEADER =====
-st.title("🐄 Arvind Dairy Milk Management")
+# ===== SIDEBAR =====
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1998/1998610.png", width=100)
+menu = st.sidebar.radio("Menu",
+["Dashboard","Entry","Records","Reports","Expense","Bill"])
 
-# ===== TABS =====
-tab1, tab2, tab3, tab4 = st.tabs(["📥 Entry", "📊 Records", "📈 Reports", "💰 Dashboard"])
+st.title("🐄 Arvind Dairy Super App")
 
-# ===== ENTRY =====
-with tab1:
+# ================= DASHBOARD =================
+if menu == "Dashboard":
 
-    col1, col2, col3 = st.columns(3)
+    if not df.empty:
 
-    with col1:
+        total = df["Amount"].sum()
+        month = df[df["Date"].dt.month == datetime.today().month]
+        month_total = month["Amount"].sum()
+
+        exp_total = exp["Amount"].sum() if not exp.empty else 0
+        profit = month_total - exp_total
+
+        c1,c2,c3 = st.columns(3)
+
+        c1.markdown(f'<div class="card big">Total ₹ {total:.2f}</div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="card big">Monthly ₹ {month_total:.2f}</div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="card big">Profit ₹ {profit:.2f}</div>', unsafe_allow_html=True)
+
+        # PIE CHART
+        st.subheader("📊 Income vs Expense")
+        chart = pd.DataFrame({
+            "Type":["Income","Expense"],
+            "Value":[month_total,exp_total]
+        })
+        st.bar_chart(chart.set_index("Type"))
+
+# ================= ENTRY =================
+elif menu == "Entry":
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
+    c1,c2,c3 = st.columns(3)
+
+    with c1:
         date = st.date_input("Date")
-        shift = st.selectbox("Shift", ["Morning", "Evening"])
+        customer = st.text_input("Customer")
 
-    with col2:
-        qty = st.number_input("Milk (Ltr)", min_value=0.0)
-        fat = st.number_input("Fat %", min_value=0.0)
+    with c2:
+        shift = st.selectbox("Shift",["Morning","Evening"])
+        qty = st.number_input("Milk",0.0)
 
-    with col3:
-        rate_100 = st.number_input("100 Fat Rate", value=90.0)
+    with c3:
+        fat = st.number_input("Fat",0.0)
+        rate100 = st.number_input("100 Fat Rate",90.0)
 
-    rate = (rate_100 / 100) * fat
+    rate = (rate100/100)*fat
     amount = qty * rate
 
     st.metric("Amount ₹", f"{amount:.2f}")
 
     if st.button("Save Entry"):
-        new = pd.DataFrame([[date, shift, qty, fat, rate, amount]],
-                           columns=df.columns)
-        df = pd.concat([df, new], ignore_index=True)
-        save_data(df)
-        st.success("Saved Successfully!")
+        df.loc[len(df)] = [date,customer,shift,qty,fat,rate,amount]
+        save()
+        st.success("Saved")
 
-# ===== RECORDS (EDIT + DELETE) =====
-with tab2:
-    st.subheader("📊 Records")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if not df.empty:
+# ================= RECORD =================
+elif menu == "Records":
+    st.dataframe(df)
 
-        selected_index = st.number_input("Select Row Index to Edit/Delete", min_value=0, max_value=len(df)-1, step=1)
-
-        row = df.loc[selected_index]
-
-        st.write("### ✏️ Edit Entry")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            new_qty = st.number_input("Quantity", value=float(row["Quantity"]))
-            new_fat = st.number_input("Fat", value=float(row["Fat"]))
-
-        with col2:
-            new_shift = st.selectbox("Shift", ["Morning", "Evening"], index=0 if row["Shift"]=="Morning" else 1)
-            new_rate100 = st.number_input("100 Fat Rate", value=float(row["Rate"]*100/row["Fat"]) if row["Fat"]!=0 else 90.0)
-
-        new_rate = (new_rate100/100)*new_fat
-        new_amount = new_qty * new_rate
-
-        if st.button("Update Entry"):
-            df.at[selected_index, "Quantity"] = new_qty
-            df.at[selected_index, "Fat"] = new_fat
-            df.at[selected_index, "Shift"] = new_shift
-            df.at[selected_index, "Rate"] = new_rate
-            df.at[selected_index, "Amount"] = new_amount
-            save_data(df)
-            st.success("Updated!")
-
-        if st.button("Delete Entry"):
-            df = df.drop(index=selected_index).reset_index(drop=True)
-            save_data(df)
-            st.warning("Deleted!")
-
-        st.write("### 📋 Full Data")
-        st.dataframe(df, use_container_width=True)
-
-# ===== REPORTS =====
-with tab3:
-    st.subheader("📈 Reports")
+# ================= REPORT =================
+elif menu == "Reports":
 
     if not df.empty:
+        df["Month"] = df["Date"].dt.strftime("%Y-%m")
 
-        daily = df.groupby("Date")["Amount"].sum()
-        st.line_chart(daily)
+        st.line_chart(df.groupby("Date")["Amount"].sum())
+        st.bar_chart(df.groupby("Month")["Amount"].sum())
 
-        df["Month"] = df["Date"].dt.to_period("M").astype(str)
-        monthly = df.groupby("Month")["Amount"].sum()
-        st.bar_chart(monthly)
+# ================= EXPENSE =================
+elif menu == "Expense":
 
-        shift_data = df.groupby("Shift")["Amount"].sum()
-        st.bar_chart(shift_data)
+    d = st.date_input("Date")
+    a = st.number_input("Amount",0.0)
+    n = st.text_input("Note")
 
-# ===== DASHBOARD =====
-with tab4:
-    st.subheader("💰 Dashboard")
+    if st.button("Add Expense"):
+        exp.loc[len(exp)] = [d,a,n]
+        save()
+        st.success("Added")
 
-    if not df.empty:
+    st.dataframe(exp)
 
-        total = df["Amount"].sum()
+# ================= BILL =================
+elif menu == "Bill":
 
-        last10 = df[df["Date"] >= (pd.Timestamp.today() - pd.Timedelta(days=10))]
-        last10_total = last10["Amount"].sum()
+    st.subheader("🧾 Generate Bill")
 
-        current_month = df[df["Date"].dt.month == datetime.today().month]
-        monthly_total = current_month["Amount"].sum()
+    date = st.date_input("Bill Date")
+    name = st.text_input("Customer Name")
+    qty = st.number_input("Milk",0.0)
+    fat = st.number_input("Fat",0.0)
+    rate100 = st.number_input("100 Fat Rate",90.0)
 
-        col1, col2, col3 = st.columns(3)
+    rate = (rate100/100)*fat
+    amount = qty * rate
 
-        col1.metric("Total ₹", f"{total:.2f}")
-        col2.metric("Last 10 Days ₹", f"{last10_total:.2f}")
-        col3.metric("This Month ₹", f"{monthly_total:.2f}")
+    bill = f"""
+    ARVIND DAIRY
+    Date: {date}
+    Customer: {name}
+
+    Milk: {qty} L
+    Fat: {fat}
+    Rate: ₹ {rate:.2f}
+
+    Total: ₹ {amount:.2f}
+    """
+
+    st.code(bill)
+
+    st.download_button("Download Bill", bill, "bill.txt")
 
 # ===== LOGOUT =====
 if st.sidebar.button("Logout"):
