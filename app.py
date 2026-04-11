@@ -3,31 +3,18 @@ import pandas as pd
 from datetime import datetime
 import os
 
-st.set_page_config(page_title="Arvind Dairy Super App", layout="wide")
+st.set_page_config(page_title="Arvind Dairy App", layout="wide")
 
-# ===== CSS (GLASS UI) =====
+# ===== STYLE =====
 st.markdown("""
 <style>
-
-body {
-    background: linear-gradient(to right, #e0ecff, #ffffff);
-}
-
 .card {
     padding: 15px;
-    border-radius: 15px;
-    background: rgba(255,255,255,0.7);
-    backdrop-filter: blur(10px);
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    background: #f8f9fa;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
     margin-bottom: 15px;
 }
-
-.big {
-    font-size: 22px;
-    font-weight: bold;
-    color: #2c3e50;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,7 +48,7 @@ if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
-    st.title("🔐 Login - Arvind Dairy")
+    st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
@@ -76,11 +63,11 @@ if not st.session_state.login:
     st.stop()
 
 # ===== SIDEBAR =====
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1998/1998610.png", width=100)
+st.sidebar.title("Arvind Dairy App")
 menu = st.sidebar.radio("Menu",
 ["Dashboard","Entry","Records","Reports","Expense","Bill"])
 
-st.title("🐄 Arvind Dairy Super App")
+st.title("🐄 Arvind Dairy App")
 
 # ================= DASHBOARD =================
 if menu == "Dashboard":
@@ -88,30 +75,19 @@ if menu == "Dashboard":
     if not df.empty:
 
         total = df["Amount"].sum()
-        month = df[df["Date"].dt.month == datetime.today().month]
-        month_total = month["Amount"].sum()
+        avg = df["Amount"].mean()
 
-        exp_total = exp["Amount"].sum() if not exp.empty else 0
-        profit = month_total - exp_total
+        best_day = df.groupby("Date")["Amount"].sum().idxmax()
 
-        c1,c2,c3 = st.columns(3)
+        st.metric("Total ₹", total)
+        st.metric("Average ₹", avg)
 
-        c1.markdown(f'<div class="card big">Total ₹ {total:.2f}</div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="card big">Monthly ₹ {month_total:.2f}</div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="card big">Profit ₹ {profit:.2f}</div>', unsafe_allow_html=True)
+        st.info(f"Best Day: {best_day}")
 
-        # PIE CHART
-        st.subheader("📊 Income vs Expense")
-        chart = pd.DataFrame({
-            "Type":["Income","Expense"],
-            "Value":[month_total,exp_total]
-        })
-        st.bar_chart(chart.set_index("Type"))
+        st.line_chart(df.groupby("Date")["Amount"].sum())
 
 # ================= ENTRY =================
 elif menu == "Entry":
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
 
     c1,c2,c3 = st.columns(3)
 
@@ -135,13 +111,25 @@ elif menu == "Entry":
     if st.button("Save Entry"):
         df.loc[len(df)] = [date,customer,shift,qty,fat,rate,amount]
         save()
-        st.success("Saved")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.success("Entry Saved ✅")
 
 # ================= RECORD =================
 elif menu == "Records":
-    st.dataframe(df)
+
+    st.subheader("📊 Records")
+
+    if not df.empty:
+
+        # DATE FILTER
+        start = st.date_input("From Date")
+        end = st.date_input("To Date")
+
+        filtered = df[
+            (df["Date"] >= pd.to_datetime(start)) &
+            (df["Date"] <= pd.to_datetime(end))
+        ]
+
+        st.dataframe(filtered)
 
 # ================= REPORT =================
 elif menu == "Reports":
@@ -149,7 +137,6 @@ elif menu == "Reports":
     if not df.empty:
         df["Month"] = df["Date"].dt.strftime("%Y-%m")
 
-        st.line_chart(df.groupby("Date")["Amount"].sum())
         st.bar_chart(df.groupby("Month")["Amount"].sum())
 
 # ================= EXPENSE =================
@@ -162,14 +149,14 @@ elif menu == "Expense":
     if st.button("Add Expense"):
         exp.loc[len(exp)] = [d,a,n]
         save()
-        st.success("Added")
+        st.success("Expense Added")
 
     st.dataframe(exp)
 
 # ================= BILL =================
 elif menu == "Bill":
 
-    st.subheader("🧾 Generate Bill")
+    st.subheader("🧾 Dairy Bill")
 
     date = st.date_input("Bill Date")
     name = st.text_input("Customer Name")
@@ -180,21 +167,17 @@ elif menu == "Bill":
     rate = (rate100/100)*fat
     amount = qty * rate
 
-    bill = f"""
-    ARVIND DAIRY
-    Date: {date}
-    Customer: {name}
+    st.markdown(f"""
+    ### 🐄 Arvind Dairy
+    Date: {date}  
+    Customer: {name}  
 
-    Milk: {qty} L
-    Fat: {fat}
-    Rate: ₹ {rate:.2f}
+    Milk: {qty} L  
+    Fat: {fat}  
+    Rate: ₹ {rate:.2f}  
 
-    Total: ₹ {amount:.2f}
-    """
-
-    st.code(bill)
-
-    st.download_button("Download Bill", bill, "bill.txt")
+    ### Total: ₹ {amount:.2f}
+    """)
 
 # ===== LOGOUT =====
 if st.sidebar.button("Logout"):
